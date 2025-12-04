@@ -1,11 +1,20 @@
 <?php
+session_start();
+
+// Check if the user is NOT logged in
+if (!isset($_SESSION['loggedin']) || $_SESSION['loggedin'] !== true) {
+    // Redirect to login page if not logged in
+    header("Location: login.php");
+    exit;
+}
+
 // Set up variable for raw input (before escaping)
 $game_id_raw = $_GET['id'] ?? '';
 
 // Validate ID input
 if ($game_id_raw === '' || !is_numeric($game_id_raw)) {
     // If no valid ID is provided, redirect back to the main page
-    header("Location: index.php?error=invalid_id");
+    header("Location: games.php?error=invalid_id");
     exit();
 }
 
@@ -19,22 +28,22 @@ if ($mysqli->connect_errno) {
     exit();
 }
 
-// --- FIX APPLIED HERE ---
-// Escape the raw ID to prevent SQL injection
+// Escape the raw ID and cast to int to prevent SQL injection
 $game_id = (int)$mysqli->real_escape_string($game_id_raw);
-// --- END FIX ---
 
 // Build SQL statement using the safely escaped value
 $sql = "DELETE FROM games WHERE game_ID = {$game_id}";
 
-// Run SQL statement and report errors
-if (!$mysqli->query($sql)) {
-    // If an error occurs, report it
-    echo("<h4>SQL error description: " . $mysqli->error . "</h4>");
+if ($mysqli->query($sql) === TRUE) {
+    // Success: Redirect back to the main games list
+    header("Location: games.php");
+    exit();
+} else {
+    // Failure: Display error
+    echo "Error deleting record: " . $mysqli->error;
     exit();
 }
 
-// Redirect to list (assuming the list page is 'games.php')
-header("Location: games.php?status=deleted");
-exit();
+// Close connection
+$mysqli->close();
 ?>
