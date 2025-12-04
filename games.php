@@ -1,3 +1,28 @@
+<?php
+// Start output buffering to prevent "Headers already sent" errors
+ob_start();
+session_start();
+
+// Check if the user is NOT logged in
+if (!isset($_SESSION['loggedin']) || $_SESSION['loggedin'] !== true) {
+    // Redirect to login page if not logged in
+    header("Location: login.php");
+    exit;
+}
+
+// Connect to database (This must also happen BEFORE HTML output)
+// **NOTE: Please verify and update your database credentials here!**
+$mysqli = new mysqli("localhost", "2408369", "Tuba@1230000", "db2408369");
+
+if ($mysqli->connect_errno) {
+    // This part can output an error because it stops execution
+    die("<p class='error-message'>ERROR: Failed to connect to MySQL: " . $mysqli->connect_error . "</p>");
+}
+
+// Run SQL query for the DEFAULT display (all games)
+$sql = "SELECT * FROM games ORDER BY rating DESC";
+$results = $mysqli->query($sql);
+?>
 <!doctype html>
 <html lang="en">
 <head>
@@ -5,327 +30,285 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Game Archive</title>
     <style>
-       /* New Modern Palette */
-body {
-    font-family: 'Inter', sans-serif;
-    background: linear-gradient(145deg, #0D1117 0%, #1A1F27 100%);
-    color: #F5F5F5;
-    margin: 0;
-    padding: 0;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: space-between;
-    overflow-x: hidden;
-}
+       /* STYLES (Kept for completeness, based on your files) */
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(145deg, #0D1117 0%, #1A1F27 100%);
+            color: #F5F5F5;
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            overflow-x: hidden;
+        }
 
-/* Soft textured background */
-body::before {
-    content: '';
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-image: radial-gradient(rgba(255,255,255,0.05) 1px, transparent 1px);
-    background-size: 20px 20px;
-    opacity: 0.05;
-    pointer-events: none;
-}
+        header {
+            background-color: rgba(20, 25, 30, 0.95);
+            width: 100%;
+            padding: 20px 0;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+            margin-bottom: 20px;
+            display: flex;
+            flex-direction: column; 
+            align-items: center;
+        }
 
-header {
-    background-color: rgba(20, 25, 35, 0.95);
-    border-bottom: 3px solid #C7F464;
-    padding: 30px 40px;
-    width: 100%;
-    text-align: center;
-    box-shadow: 0 5px 25px rgba(90, 79, 207, 0.4);
-}
+        h1 {
+            color: #C7F464; /* Neon Green */
+            text-shadow: 0 0 10px rgba(199, 244, 100, 0.8);
+            margin-bottom: 10px;
+            font-size: 2.5rem;
+        }
 
-h1 {
-    margin: 0;
-    font-size: 3.2em;
-    color: #F5F5F5;
-    font-family: 'Poppins', sans-serif;
-    text-shadow: 0 0 10px rgba(90, 79, 207, 0.6);
-    letter-spacing: 3px;
-    text-transform: uppercase;
-}
+        nav a {
+            color: #4dd0e1; /* Cyan/Teal */
+            text-decoration: none;
+            padding: 10px 15px;
+            margin: 0 10px;
+            transition: color 0.3s, text-shadow 0.3s;
+        }
 
-h1::after {
-    content: '';
-    display: block;
-    width: 90px;
-    height: 3px;
-    background-color: #C7F464;
-    margin: 12px auto 0;
-    box-shadow: 0 0 8px #C7F464;
-}
+        nav a:hover {
+            color: #FF1493; /* Neon Pink */
+            text-shadow: 0 0 10px rgba(255, 20, 147, 0.8);
+        }
+        
+        /* NEW: Search Bar Styles */
+        .search-container {
+            width: 80%;
+            max-width: 400px;
+            margin: 10px 0 20px 0;
+        }
 
-.container {
-    width: 90%;
-    max-width: 1200px;
-    margin: 40px auto;
-    padding: 25px;
-    background-color: rgba(26, 31, 39, 0.8);
-    border: 1px solid rgba(90, 79, 207, 0.4);
-    border-radius: 12px;
-    box-shadow: 0 0 30px rgba(90, 79, 207, 0.25);
-    backdrop-filter: blur(4px);
-}
+        #live-search-input {
+            width: 100%;
+            padding: 10px 15px;
+            border: 2px solid #4dd0e1; /* Cyan Border */
+            border-radius: 5px;
+            background-color: #1A1F27; /* Dark background */
+            color: #F5F5F5;
+            font-size: 1rem;
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
 
-form {
-    text-align: center;
-    padding: 25px;
-    background-color: rgba(20, 25, 35, 0.85);
-    border: 1px solid #5A4FCF;
-    border-radius: 10px;
-    box-shadow: 0 0 12px rgba(90, 79, 207, 0.2);
-    position: relative;
-}
+        #live-search-input:focus {
+            outline: none;
+            border-color: #C7F464; /* Focus color neon green */
+            box-shadow: 0 0 8px rgba(199, 244, 100, 0.6);
+        }
 
-form::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 50px;
-    height: 3px;
-    background-color: #C7F464;
-    box-shadow: 0 0 8px #C7F464;
-}
+        .table-responsive {
+            width: 90%;
+            max-width: 1200px;
+            margin: 20px auto;
+            overflow-x: auto;
+        }
 
-input[type="text"] {
-    padding: 14px;
-    width: 340px;
-    border: 2px solid #5A4FCF;
-    border-radius: 6px;
-    background-color: #0D1117;
-    color: #F5F5F5;
-    font-size: 1em;
-    box-shadow: inset 0 0 6px rgba(90, 79, 207, 0.6);
-    transition: all 0.3s ease-in-out;
-}
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #252a34; /* Slightly lighter inner background */
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+            border-radius: 8px;
+            overflow: hidden; 
+        }
 
-input[type="text"]:focus {
-    border-color: #C7F464;
-    outline: none;
-    box-shadow: 0 0 12px rgba(199, 244, 100, 0.7);
-}
+        th, td {
+            padding: 15px;
+            text-align: left;
+            border-bottom: 1px solid #363b45;
+        }
 
-input[type="submit"] {
-    padding: 14px 28px;
-    background-color: #C7F464;
-    color: #0D1117;
-    border: none;
-    border-radius: 6px;
-    font-weight: bold;
-    text-transform: uppercase;
-    cursor: pointer;
-    box-shadow: 0 0 12px rgba(199, 244, 100, 0.7);
-    transition: all 0.3s ease-in-out;
-    margin-left: 15px;
-}
+        th {
+            background-color: #1A1F27;
+            color: #C7F464;
+            text-transform: uppercase;
+            font-size: 0.9rem;
+        }
 
-input[type="submit"]:hover {
-    background-color: #5A4FCF;
-    color: #fff;
-    box-shadow: 0 0 18px rgba(90, 79, 207, 1);
-}
+        tr:hover td {
+            background-color: #2e353f;
+        }
 
-table {
-    width: 100%;
-    margin-top: 40px;
-    border-collapse: collapse;
-    background-color: rgba(26, 31, 39, 0.9);
-    border: 1px solid #5A4FCF;
-    border-radius: 10px;
-    overflow: hidden;
-    box-shadow: 0 0 25px rgba(90, 79, 207, 0.25);
-}
+        a {
+            color: #4dd0e1;
+            text-decoration: none;
+            transition: color 0.3s;
+        }
 
-th, td {
-    padding: 18px;
-    text-align: center;
-    border-bottom: 1px solid rgba(199, 244, 100, 0.25);
-}
+        a:hover {
+            color: #FF1493;
+        }
 
-th {
-    background-color: #5A4FCF;
-    color: #F5F5F5;
-    font-family: 'Poppins', sans-serif;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    font-size: 1.1em;
-}
+        .delete-btn {
+            color: #FF6B6B; /* Soft Red */
+        }
 
-tr:nth-child(even) {
-    background-color: rgba(20, 25, 35, 0.7);
-}
+        .edit-btn {
+            color: #C7F464; /* Neon Green */
+        }
 
-tr:hover {
-    background-color: rgba(199, 244, 100, 0.12);
-    cursor: pointer;
-}
+        footer {
+            margin-top: auto;
+            padding: 15px 0;
+            background-color: rgba(20, 25, 30, 0.95);
+            width: 100%;
+            text-align: center;
+            color: #888;
+            font-size: 0.8rem;
+        }
 
-a {
-    color: #C7F464;
-    font-weight: bold;
-    text-shadow: 0 0 6px rgba(199, 244, 100, 0.8);
-    transition: 0.3s ease;
-}
-
-a:hover {
-    color: #5A4FCF;
-    text-shadow: none;
-}
-
-footer {
-    text-align: center;
-    padding: 20px;
-    background-color: rgba(20, 25, 35, 0.95);
-    color: #C7F464;
-    border-top: 3px solid #C7F464;
-    text-shadow: 0 0 10px #C7F464;
-    font-size: 0.9em;
-}
-
-/* Error box */
-.error-message {
-    color: #C7F464;
-    background-color: rgba(20, 25, 35, 0.95);
-    border: 1px dashed #5A4FCF;
-    padding: 20px;
-    margin: 20px auto;
-    border-radius: 8px;
-    text-shadow: 0 0 10px #C7F464;
-    box-shadow: 0 0 15px rgba(90, 79, 207, 0.4);
-}
-
-/* Responsive */
-@media (max-width: 768px) {
-    h1 { font-size: 2em; }
-    input[type="text"], input[type="submit"] {
-        width: calc(100% - 30px);
-        margin-left: 0;
-        margin-bottom: 10px;
-    }
-}
-
-@media (max-width: 480px) {
-    h1 { font-size: 1.3em; }
-}
-
-
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            /* ... (existing responsive styles) ... */
+            table, thead, tbody, th, td, tr { display: block; }
+            thead tr { position: absolute; top: -9999px; left: -9999px; }
+            tr { border: 1px solid #363b45; margin-bottom: 10px; border-radius: 5px; }
+            td { border: none; position: relative; padding-left: 50%; text-align: right; }
+            td:before {
+                content: attr(data-label);
+                position: absolute;
+                left: 6px;
+                width: 45%;
+                padding-right: 10px;
+                white-space: nowrap;
+                text-align: left;
+                font-weight: bold;
+                color: #C7F464;
+            }
+        }
     </style>
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
 </head>
 <body>
     <header>
-        <h1> EliteGame Hub </h1>
-    </header>
+        <h1>🎮 Game Archive</h1>
+        <nav>
+            <a href="add-game-form.php">Add New Game</a>
+            <a href="logout.php">Logout</a>
+        </nav>
+        
+        <div class="search-container">
+            <input type="text" id="live-search-input" placeholder="Live search by game name..." autocomplete="off">
+        </div>
+        </header>
 
-    <div class="container">
-        <?php
-        // Connect to database
-        $mysqli = new mysqli("localhost", "2408369", "Tuba@1230000", "db2408369");
-
-        if ($mysqli->connect_errno) {
-            // Reverted to a standard, less dramatic error message
-            echo "<p class='error-message'>ERROR: Failed to connect to MySQL: " . $mysqli->connect_error . "</p>";
-        }
-
-        // Run SQL query
-        $sql = "SELECT * FROM games ORDER BY rating DESC";
-        $results = isset($mysqli) && !$mysqli->connect_errno ? $mysqli->query($sql) : null;
-        ?>
-
-        <form action="search.php" method="post">
-        <input type="text" name="keywords" placeholder="Search for a game...">
-        <input type="submit" value="Search"> </form>
-	 <a href="add-game-form.php" class="btn btn-primary">Add a game</a>
-
-
+    <main class="table-responsive">
         <table>
             <thead>
                 <tr>
-                    <th> Game Name</th>
-                    <th> Release Date</th>
-                    <th> IMDB Rating</th>
-					
+                    <th>Game</th>
+                    <th>Date Released</th>
+                    <th>IMDB Rating</th>
+                    <th>Actions</th>
                 </tr>
             </thead>
-            <tbody>
+            
+            <tbody id="results-body">
                 <?php
-                // Mock data if the connection failed, to show the style
-                if (!$results || (isset($results) && $results->num_rows === 0)) {
-                    $mock_data = [
-                        ['game_name' => 'Desert Runner 404', 'released_date' => '2077-10-23', 'rating' => '9.2'],
-                        ['game_name' => 'Spice Harvester: The Board Game', 'released_date' => '1984-12-18', 'rating' => '8.8'],
-                        ['game_name' => 'Neon District Protocol', 'released_date' => '2049-05-15', 'rating' => '7.9'],
-                        ['game_name' => 'Fremen Tactics Simulator', 'released_date' => '2025-01-01', 'rating' => '9.5']
-                    ];
-                    foreach ($mock_data as $index => $row):
+                // This is the default display of all games
+                if ($results && $results->num_rows > 0) {
+                    while ($a_row = $results->fetch_assoc()): 
                 ?>
-                <tr>
-                    <td>
-                        <a href="details.php?id=<?= $index + 100 ?>">
-                            <?= htmlspecialchars($row['game_name']) ?>
-                        </a>
-                    </td>
-                    <td><?= htmlspecialchars($row['released_date']) ?></td>
-                    <td>
-                        <span style="color: #FF1493; text-shadow: 0 0 10px rgba(255, 20, 147, 0.9);">
-                            <?= htmlspecialchars($row['rating']) ?>
-                        </span>
-                    </td>
-                    <td> <a href="delete.php?id=<?= $index + 100 ?>"
-                           onclick="return confirm('Are you sure you want to delete \'<?= htmlspecialchars($row['game_name']) ?>\'?');"
-                           class="delete-btn">
-                            [DELETE]
-                        </a>
-                    </td>
-                </tr>
-                <?php
-                    endforeach;
-                } else {
-                    // Original PHP logic if connection succeeded
-                    while ($a_row = $results->fetch_assoc()): ?>
                     <tr>
-                        <td>
+                        <td data-label="Game Name">
                             <a href="details.php?id=<?= htmlspecialchars($a_row['game_ID']) ?>">
                                 <?= htmlspecialchars($a_row['game_name']) ?>
                             </a>
                         </td>
-                        <td><?= htmlspecialchars($a_row['released_date']) ?></td>
-                        <td>
+                        <td data-label="Release Date"><?= htmlspecialchars($a_row['released_date']) ?></td>
+                        <td data-label="IMDB Rating">
                             <span style="color: #FF1493; text-shadow: 0 0 10px rgba(255, 20, 147, 0.9);">
                                 <?= htmlspecialchars($a_row['rating']) ?>
                             </span>
                         </td>
-                        <td> <a href="delete.php?id=<?= htmlspecialchars($a_row['game_ID']) ?>" 
+                        <td data-label="Actions"> 
+                             <a href="delete.php?id=<?= htmlspecialchars($a_row['game_ID']) ?>" 
                                onclick="return confirm('Are you sure you want to delete \'<?= htmlspecialchars($a_row['game_name']) ?>\'?');"
                                class="delete-btn">
                                 [DELETE]
                             </a>
+                            <a href="edit.php?ID=<?= htmlspecialchars($a_row['game_ID']) ?>" class="edit-btn">
+                                [EDIT]
+                            </a>
                         </td>
-						
-					<td> 
-                        <a href="edit.php?ID=<?= htmlspecialchars($a_row['game_ID']) ?>" class="edit-btn">
-        [EDIT]
-    </a>
-                    </td>
                     </tr>
                     <?php endwhile;
+                } else {
+                    // Display message if no games are found initially
+                    echo "<tr><td colspan='4' style='text-align: center; color: #888;'>No games in the archive.</td></tr>";
                 }
                 ?>
             </tbody>
         </table>
-    </div>
+    </main>
 
     <footer>
-        <p>&copy; <?= date("Y") ?> **Game Archive** | Data Stable</p> </footer>
+        <p>&copy; <?= date("Y") ?> **Game Archive** | Data Stable</p> 
+    </footer>
+    
+    <script>
+    // Get the DOM elements
+    const searchInput = document.getElementById('live-search-input');
+    const resultsBody = document.getElementById('results-body');
+    
+    // Check if elements exist before attaching listeners
+    if (searchInput && resultsBody) {
+
+        // Store the initial content of the table body after the page loads. 
+        // This is crucial for restoring the full list when the search box is cleared.
+        const defaultBodyContent = resultsBody.innerHTML; 
+
+        let debounceTimeout;
+
+        // Listen for user typing in the search box
+        searchInput.addEventListener('input', function() {
+            // 1. Debounce: Clear the previous timer and set a new one
+            // This prevents an AJAX request on *every* single keystroke, improving performance.
+            clearTimeout(debounceTimeout);
+            
+            // Wait 300ms after the last keypress before searching
+            debounceTimeout = setTimeout(() => {
+                const keywords = searchInput.value.trim();
+
+                if (keywords.length > 0) {
+                    
+                    // Show a temporary loading message to the user
+                    resultsBody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #FF1493;">Loading results...</td></tr>';
+
+                    // 2. Make the AJAX request using the native Fetch API
+                    // Sends the keywords to live_search.php as a GET parameter
+                    fetch(`live_search.php?keywords=${encodeURIComponent(keywords)}`)
+                        .then(response => {
+                            // Check for HTTP errors (e.g., 404, 500)
+                            if (!response.ok) {
+                                throw new Error(`HTTP error! status: ${response.status}`);
+                            }
+                            // 3. Get the response body as plain text (which is the HTML rows)
+                            return response.text();
+                        })
+                        .then(html => {
+                            // 4. Update the table body with the server's HTML response
+                            resultsBody.innerHTML = html;
+                        })
+                        .catch(error => {
+                            // Handle network or server errors
+                            console.error('Fetch error:', error);
+                            resultsBody.innerHTML = `<tr><td colspan='4' style='color: red;'>Error fetching results: ${error.message}</td></tr>`;
+                        });
+                } else {
+                    // If the search box is empty, restore the original list of all games
+                    resultsBody.innerHTML = defaultBodyContent;
+                }
+            }, 300); // 300ms debounce time
+        });
+    }
+</script>
 </body>
 </html>
+<?php
+// End output buffering and flush it (sends all the content to the browser)
+ob_end_flush();
+?>
